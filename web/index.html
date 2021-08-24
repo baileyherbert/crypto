@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width,initial-scale=1">
+
+		<title>Svelte app</title>
+
+		<link rel="icon" type="image/png" href="/favicon.png">
+		<link rel="stylesheet" type="text/css" href="/src/styles/index.scss">
+		<meta name="theme-color" content="#010102">
+
+		<script src="https://cdn.anychart.com/releases/8.10.0/js/anychart-base.min.js"></script>
+		<script src="https://cdn.anychart.com/releases/8.10.0/js/anychart-stock.min.js"></script>
+	</head>
+	<body>
+		<noscript>Please enable JavaScript to view this application.</noscript>
+
+		<script type="text/javascript">
+			var ws = 'ws://127.0.0.1:21457';
+			var wsPath = '/socket.io/';
+			// var ws = 'https://bailey.sh/';
+			// var wsPath = '/crypto/api/socket.io';
+			var subscription = 'bailey';
+		</script>
+		<script type="module" src="/src/main.ts"></script>
+	</body>
+</html>

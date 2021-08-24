@@ -1,0 +1,93 @@
+// SF Mono
+
+@font-face {
+    font-family: 'SF Mono';
+    src: url('../fonts/sfmono-bold.woff2') format('woff2'),
+         url('../fonts/sfmono-bold.woff') format('woff');
+    font-weight: 700;
+    font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+    font-family: 'SF Mono';
+    src: url('../fonts/sfmono-heavy.woff2') format('woff2'),
+         url('../fonts/sfmono-heavy.woff') format('woff');
+    font-weight: 800;
+    font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+    font-family: 'SF Mono';
+    src: url('../fonts/sfmono-light.woff2') format('woff2'),
+         url('../fonts/sfmono-light.woff') format('woff');
+    font-weight: 300;
+    font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+    font-family: 'SF Mono';
+    src: url('../fonts/sfmono-medium.woff2') format('woff2'),
+         url('../fonts/sfmono-medium.woff') format('woff');
+    font-weight: 500;
+    font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+    font-family: 'SF Mono';
+    src: url('../fonts/sfmono-regular.woff2') format('woff2'),
+         url('../fonts/sfmono-regular.woff') format('woff');
+    font-weight: 400;
+    font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+    font-family: 'SF Mono';
+    src: url('../fonts/sfmono-semibold.woff2') format('woff2'),
+         url('../fonts/sfmono-semibold.woff') format('woff');
+    font-weight: 600;
+    font-style: normal;
+	font-display: swap;
+}
+
+// SF Pro Text
+
+@font-face {
+    font-family: 'SF Pro Text';
+    src: url('../fonts/sfprotext-regular.woff2') format('woff2'),
+         url('../fonts/sfprotext-regular.woff') format('woff');
+    font-weight: 400;
+    font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+    font-family: 'SF Pro Text';
+    src: url('../fonts/sfprotext-medium.woff2') format('woff2'),
+         url('../fonts/sfprotext-medium.woff') format('woff');
+    font-weight: 500;
+    font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+    font-family: 'SF Pro Text';
+    src: url('../fonts/sfprotext-semibold.woff2') format('woff2'),
+         url('../fonts/sfprotext-semibold.woff') format('woff');
+    font-weight: 600;
+    font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+    font-family: 'SF Pro Text';
+    src: url('../fonts/sfprotext-bold.woff2') format('woff2'),
+         url('../fonts/sfprotext-bold.woff') format('woff');
+    font-weight: 700;
+    font-style: normal;
+	font-display: swap;
+}
