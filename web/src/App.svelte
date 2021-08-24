@@ -56,43 +56,99 @@
 		'weeeeeee',
 		'WEEEEEE!',
 		'to the moon',
-		'rocket booster',
+		'rocket fuel!!1',
+		'in doge we trust',
+		'#OccupyMars',
+		'much rising',
+		'many fast',
+		'very speed',
+		'very profit',
+		'new! value!!',
+		'owo',
+		'crypto go brrrr lol',
+		'such money. very wow!',
+		'such investing',
+		'hooman gibme treat plz',
+		'what does the future hodl?',
+		'very space',
+		'zoom'
 	];
 
 	const negativeMemes = [
-		'oh no',
+		'wuh woh',
 		'much loss',
 		'very drop',
 		'such fall',
-		'scary',
-		'spooky',
+		'scary!!',
+		'spooky...',
 		'falling',
+		'fear intensifying',
 		'/10 mine',
 		'to the ground',
 		'much sad',
 		'such pain',
-		'so despair!',
 		'HODL!',
 		'wrong way!!',
-		'ugly color',
-		'gravity turn?',
-		'very red!',
-		'disappoint',
-		'sadness',
-		'grief',
-		'pain and suffering',
-		'very misery'
+		'such an ugly color',
+		'very down!',
+		'great sadness',
+		'wubba lubba dub dub',
+		'space too high',
+		'low fuel',
+		'no regrets',
+		'moon grows ever further...',
+		'* lunar lander not included',
+		'so scare',
+		'concern',
+		'*holds shiba inu in fear*',
+		'flight diverted',
+		'aaah! bear attack!!!',
+		'¯\\_(ツ)_/¯',
+		'such danger',
+		'very scare',
+	];
+
+	const dayPositives = [
+		'shiny sunday ✨',
+		'magical monday 🔮',
+		'terrific tuesday 👍',
+		'wealthy wednesday 🤑',
+		'thriving thursday 🔥',
+		'fantastic friday 💖',
+		'super saturday 🦸‍♂️'
+	];
+
+	const dayNegatives = [
+		'sadness sunday 😢',
+		'miserable monday 😭',
+		'tragedy tuesday 💀',
+		'worthless wednesday 📉',
+		'typical thursday 🤷‍♂️',
+		'failure friday 💥',
+		'shaky saturday 🌪'
 	];
 
 	function renderMeme(type) {
 		if (lastMemeTime < Date.now() - 300) {
 			lastMemeTime = Date.now();
 
-			const memes = type === 'positive' ? positiveMemes : negativeMemes;
+			// Get the memes for today
+			const memes = type === 'positive' ? [...positiveMemes] : [...negativeMemes];
+			const dayMemes = type === 'positive' ? dayPositives : dayNegatives;
+
+			// Add the day meme for today
+			const dayNumber = new Date().getDay();
+			memes.push(dayMemes[dayNumber]);
+
+			// Get a random meme :D
 			let text = memes[Math.floor(Math.random() * memes.length)];
 
 			if (text.startsWith('/')) {
 				text = Math.floor(Math.random() * 6) + text;
+			}
+
+			if (Math.random() < 0.00065) {
+				text = '🥚 easter egg lol';
 			}
 
 			const el = document.createElement('span');
