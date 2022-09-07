@@ -1,5 +1,5 @@
 import { EventEmitter } from '@baileyherbert/common';
-import type { WebChartData, WebChartType } from '../models/WebChart';
+import type { WebChartCorrection, WebChartData, WebChartType } from '../models/WebChart';
 import { createStore } from '../util/stores';
 import type { WebEngine } from '../WebEngine';
 
@@ -44,6 +44,9 @@ export class ChartManager extends EventEmitter<ChartManagerEvents> {
 
 	public constructor(private engine: WebEngine) {
 		super();
+
+		// @ts-ignore
+		this.interval.set(localStorage.getItem('chart-interval') ?? '1m');
 	}
 
 	/**
@@ -64,6 +67,15 @@ export class ChartManager extends EventEmitter<ChartManagerEvents> {
 		this.chartData.set(dto);
 	}
 
+	public sendDataCorrection(dto: WebChartCorrection) {
+		if (this.channel.get() === dto.name) {
+			if (this.interval.get() === dto.interval) {
+				console.log('Setting data correction:', dto);
+				this._emit('chartCorrection', dto);
+			}
+		}
+	}
+
 	/**
 	 * Switches the chart to the specified interval.
 	 *
@@ -77,6 +89,7 @@ export class ChartManager extends EventEmitter<ChartManagerEvents> {
 		this.interval.set(interval);
 		this.chartCurrentTick.set(undefined);
 		this.chartData.set([]);
+		localStorage.setItem('chart-interval', interval);
 
 		this._subscribe();
 	}
@@ -170,6 +183,11 @@ type ChartManagerEvents = {
 	 *
 	 */
 	chartCurrentTickData: [];
+
+	/**
+	 * Emitted when we have a data correction and should update that part of the chart.
+	 */
+	chartCorrection: [data: WebChartCorrection];
 };
 
 export type Interval = '1m' | '5m' | '15m' | '1h' | '6h' | '1d';

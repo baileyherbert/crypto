@@ -1,7 +1,7 @@
 import { Logger } from '@baileyherbert/common';
 import { Server, Socket } from 'socket.io';
 import { Main } from '..';
-import { Account } from '../core/Account';
+import { Account, RecalculateDto } from '../core/Account';
 import { WebClient } from './WebClient';
 import { WebSubscriptionManager } from './WebSubscriptionManager';
 
@@ -96,6 +96,7 @@ export class WebManager {
 	 */
 	public async onClientConnect(client: WebClient) {
 		const account = client.account;
+		const address = this._getRemoteAddress(client.socket);
 
 		// Add the client to the relevant subscription manager
 		this.getSubscription(account).addClient(client);
@@ -113,12 +114,17 @@ export class WebManager {
 		// Send the signal that we're done initializing
 		client.emit('@init/finished');
 
-		// ----- After connecting -----
-		// Send all balances every 1 second (include percent changes)
-		// Send total balance every 0.2 seconds
-		// ----- Subscription based -----
-		// Send the selected balance and candlestick every 0.2 seconds
-		// Send the selected balance's changes (percent and amount) every 1 second
+		// Listen for requests
+		client.socket.on('@chart/recalculate', (options: RecalculateDto) => {
+			this.logger.info(
+				'Client <%s> requested recalculation for %d@%s',
+				address,
+				options.timestamp,
+				options.interval
+			);
+
+			account.recalculateBalancesAt(client, options);
+		});
 	}
 
 	/**

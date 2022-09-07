@@ -2,7 +2,7 @@ import io, { Socket } from 'socket.io-client';
 import type { WebAssetDto } from './dtos/WebAssetDto';
 import type { WebBalanceDto } from './dtos/WebBalanceDto';
 import { ChartManager } from './managers/ChartManager';
-import type { WebChartData } from './models/WebChart';
+import type { WebChartCorrection, WebChartData } from './models/WebChart';
 import { WebState } from './WebState';
 import { WebTransformer } from './WebTransformer';
 
@@ -79,6 +79,11 @@ export class WebEngine {
 			this.chart.updateChartData(dto);
 		});
 
+		// Send chart corrections
+		this.socket.on('@chart/correction', (dto: WebChartCorrection) => {
+			this.chart.sendDataCorrection(dto);
+		});
+
 		this.socket.on('@init/finished', () => {
 			this.state.connected.set(true);
 		});
@@ -86,8 +91,23 @@ export class WebEngine {
 		// Start the connection
 		this.socket.emit('subscribe', this.options.account);
 
+		// Listen for tasks
+		this.socket.on('task', (task: any) => {
+			if (task === undefined && this.state.task.get() !== undefined) {
+				this.state.task.set({
+					...this.state.task.get(),
+					progress: 100
+				});
+
+				setTimeout(() => this.state.task.set(undefined), 1200);
+				return;
+			}
+
+			this.state.task.set(task);
+		});
+
 		// Start the chart
-		this.chart.init('@total', '1m');
+		this.chart.init('@total', this.chart.interval.get(), 'balance');
 	}
 
 }

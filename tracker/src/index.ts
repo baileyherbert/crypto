@@ -70,12 +70,14 @@ export class Main {
 			case 'DOGE': return 'Dogecoin';
 			case 'DOT': return 'Polkadot';
 			case 'XTZ': return 'Tezos';
+			case 'SKL': return 'Skale';
 			case 'SOL': return 'Solana';
 			case 'LTC': return 'Litecoin';
 			case 'BCH': return 'Bitcoin Cash';
 			case 'XLM': return 'Stellar';
 			case 'ETC': return 'Ether Classic';
 			case 'IOTX': return 'IoTeX';
+			case 'ALGO': return 'Algorand';
 			case 'USD': return 'US Dollar';
 		}
 

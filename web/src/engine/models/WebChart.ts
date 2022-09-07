@@ -1,3 +1,5 @@
+import type { Interval } from '../managers/ChartManager';
+
 export interface WebChartData {
 	offset: number;
 	timestamp: number;
@@ -10,3 +12,8 @@ export interface WebChartData {
 }
 
 export type WebChartType = 'market' | 'balance';
+
+export interface WebChartCorrection extends WebChartData {
+	name: string;
+	interval: Interval;
+}

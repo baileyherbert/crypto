@@ -31,17 +31,22 @@ export class AccountBalanceInterval extends EventEmitter<AccountBalanceIntervalE
 		this._load();
 
 		setInterval(() => this._clean(), 60000 * 5);
+		setInterval(() => this._clean(), 1000);
 
 		// Send data to subscriptions
 		this._feature.on('subscribed', async client => {
 			// Send the last [retention] data points
 			const data = new Array<WebChartData>();
-			const indexes = this._index.slice(-retention);
+			const indexes = new Array<number>();
 			const promises = new Array<Promise<ICandleData | undefined>>();
 
+			const offsetEnd = Math.floor(Date.now() / this.duration);
+			const offsetBegin = offsetEnd - this.retention;
+
 			// Start reading all data
-			for (const index of indexes) {
-				promises.push(this.getDataAtIndex(index));
+			for (let offset = offsetBegin; offset <= offsetEnd; offset++) {
+				indexes.push(offset);
+				promises.push(this.getDataAtIndex(offset));
 			}
 
 			// Wait for promises to complete
@@ -52,13 +57,12 @@ export class AccountBalanceInterval extends EventEmitter<AccountBalanceIntervalE
 				const candle = results[i];
 				const index = indexes[i];
 
-				if (candle !== undefined) {
-					data.push({
-						offset: index,
-						timestamp: index * this.duration,
-						data: candle
-					});
-				}
+				data.push({
+					offset: index,
+					timestamp: index * this.duration,
+					// @ts-ignore
+					data: candle ?? {}
+				});
 			}
 
 			client.emit('@chart/data', data);
@@ -125,6 +129,10 @@ export class AccountBalanceInterval extends EventEmitter<AccountBalanceIntervalE
 		let lastApplicableIndex = -1;
 		let lastApplicableOffset = -1;
 
+		if (this._offset === target) {
+			return this._data;
+		}
+
 		for (let index = 0; index < this._index.length; index++) {
 			const offset = this._index[index];
 
@@ -151,6 +159,10 @@ export class AccountBalanceInterval extends EventEmitter<AccountBalanceIntervalE
 	 * @returns
 	 */
 	public async getDataAtIndex(index: number): Promise<ICandleData | undefined> {
+		if (this._offset === index) {
+			return this._data;
+		}
+
 		if (this._index.indexOf(index) >= 0) {
 			const fileName = path.resolve(this.savePath, `${index}.json`);
 			const data = await fs.promises.readFile(fileName);
@@ -158,6 +170,73 @@ export class AccountBalanceInterval extends EventEmitter<AccountBalanceIntervalE
 		}
 
 		return;
+	}
+
+	/**
+	 * Given an offset, and the amount of the asset owned at the time, recalculates, saves, and returns the candle
+	 * data for that offset using historical coinbase data.
+	 *
+	 * @param offset
+	 * @param amountAtTime
+	 * @returns
+	 */
+	public async recalculateAt(offset: number, amountAtTime: number): Promise<ICandleData | undefined> {
+		const history = await Main.ticker.getMarketPriceHistory(this.balance.name, this.interval);
+		const intervalDurationMillis = Main.ticker.getSecondsFromInterval(this.interval) * 1000;
+
+		const buys = this.balance.getBuysAt(offset * intervalDurationMillis, this.interval);
+		const sells = this.balance.getSellsAt(offset * intervalDurationMillis, this.interval);
+
+		let amountAtOpen = amountAtTime;
+		let amountAtClose = amountAtTime;
+
+		for (const buy of buys) {
+			amountAtOpen -= buy.quantity;
+		}
+
+		for (const sell of sells) {
+			amountAtClose -= sell.quantity;
+		}
+
+		for (const candle of history) {
+			const cOffset = Math.floor(candle.openTimeInMillis / intervalDurationMillis);
+
+			if (cOffset === offset) {
+				const data: ICandleData = {
+					open: candle.open * amountAtOpen,
+					high: candle.high * amountAtTime,
+					low: candle.low * amountAtTime,
+					close: candle.close * amountAtClose
+				};
+
+				if (data.open < data.low) data.low = data.open;
+				if (data.close < data.low) data.low = data.close;
+
+				this.correct(offset, data);
+
+				return data;
+			}
+		}
+
+		return;
+	}
+
+	public correct(offset: number, data: ICandleData) {
+		const target = path.resolve(this.savePath, `${offset}.json`);
+
+		if (fs.existsSync(target)) {
+			this._writer.write(target, JSON.stringify(data));
+
+			if (this._feature.length > 0) {
+				this._feature.emit('@chart/correction', {
+					name: this.balance.name,
+					interval: this.interval,
+					offset,
+					timestamp: this.duration * offset,
+					data
+				});
+			}
+		}
 	}
 
 	private _load() {
@@ -184,14 +263,36 @@ export class AccountBalanceInterval extends EventEmitter<AccountBalanceIntervalE
 	}
 
 	private async _clean() {
-		if (this._index.length > this.retention) {
-			const remove = this._index.slice(0, -this.retention);
-			this._index = this._index.slice(-this.retention);
+		const currentOffset = Math.floor(Date.now() / this.duration);
+		const minimumOffset = currentOffset - this.retention;
 
-			for (const offset of remove) {
+		const preserved = new Array<number>();
+		const removed = new Array<number>();
+
+		for (const offset of this._index) {
+			if (offset < minimumOffset) {
+				removed.push(offset);
+			}
+			else {
 				const target = path.resolve(this.savePath, `${offset}.json`);
 
-				if (fs.existsSync(target)) {
+				if (!await fileExists(target)) {
+					console.log('Removing interval file because it does not exist:', target);
+					removed.push(offset);
+					continue;
+				}
+
+				preserved.push(offset);
+			}
+		}
+
+		if (removed.length > 0) {
+			this._index = preserved;
+
+			for (const offset of removed) {
+				const target = path.resolve(this.savePath, `${offset}.json`);
+
+				if (await fileExists(target)) {
 					try {
 						await fs.promises.unlink(target);
 					}
@@ -250,4 +351,10 @@ export interface WebChartData {
 		high: number;
 		low: number;
 	}
+}
+
+async function fileExists(file: string) {
+	return fs.promises.access(file, fs.constants.F_OK)
+           .then(() => true)
+           .catch(() => false)
 }

@@ -5,7 +5,7 @@
 	import type { WebAsset, WebAssetOrder} from './engine/models/WebAsset';
 	import Sidebar from './Sidebar.svelte';
 
-	const { accountBalance, assets, accountName, connected, connectionError } = Backend.state;
+	const { accountBalance, assets, accountName, connected, connectionError, task } = Backend.state;
 
 	let lastAccountBalance = 0;
 	let memeContainer: HTMLDivElement;
@@ -13,6 +13,10 @@
 	let selectedAsset: WebAsset;
 
 	function selectAsset(asset: WebAsset) {
+		if (asset.ticker === 'USD') {
+			return;
+		}
+
 		if (selectedAsset === asset) {
 			selectedAsset = undefined;
 		}
@@ -71,7 +75,8 @@
 		'hooman gibme treat plz',
 		'what does the future hodl?',
 		'very space',
-		'zoom'
+		'zoom',
+		'🚀',
 	];
 
 	const negativeMemes = [
@@ -214,7 +219,7 @@
 						<div class="col sep"></div>
 						<div class="col price">Price</div>
 						<div class="col balance">Balance</div>
-						<div class="col sep"><div></div></div>
+						<div class="col sep border-empty"><div></div></div>
 						<div class="col growth mobile-2">Hour</div>
 						<div class="col growth mobile-1">Day</div>
 						<div class="col growth">Week</div>
@@ -237,3 +242,16 @@
 		<Sidebar asset={selectedAsset} />
 	{/if}
 </main>
+
+{#if $task}
+<div class="task">
+	<div class="task-wrapper">
+		<div class="details">
+			<div class="text">{$task.text}</div>
+			<div class="bar">
+				<div class="progress" style="width: {$task.progress}%;"></div>
+			</div>
+		</div>
+	</div>
+</div>
+{/if}

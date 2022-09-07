@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { WebChartData } from 'src/engine/models/WebChart';
+	import type { WebChartCorrection, WebChartData } from 'src/engine/models/WebChart';
 	import { createEventDispatcher, onMount } from 'svelte';
 	import { Backend } from 'src/globals';
 
-	const { chartCurrentTick, chartData }  = Backend.chart;
+	const { chartCurrentTick, chartData, interval }  = Backend.chart;
 
 	export let enableEma12 = false;
 	export let enableEma26 = false;
@@ -25,6 +25,23 @@
 	let ema12: anychart.core.stock.series.Base | anychart.core.stock.scrollerSeries.Base;
 	let ema26: anychart.core.stock.series.Base | anychart.core.stock.scrollerSeries.Base;
 	let range: number;
+
+	// Tracking the hovered or selected item
+	let isMouseDown = false;
+	let mouseDownAt = 0;
+	let mouseDownCoords = { x: 0, y: 0 };
+	export let hovering = false;
+	export let hoveringData: WebChartData | undefined = undefined;
+	export let selected = false;
+	export let selectedData: WebChartData | undefined = undefined;
+
+	export const deselect = () => {
+		if (selected) {
+			chart?.annotations().removeAllAnnotations();
+			selected = false;
+			selectedData = undefined;
+		}
+	};
 
 	// Calculate the current timezone for localization
 	var offset = new Date().getTimezoneOffset();
@@ -62,55 +79,53 @@
 		}
 	}
 
-	function getMinorTicks(interval: string, range: number) {
-		switch (interval) {
-			case 'minute': {
-				if (range <= 20) return { unit: 'minute', count: 1 };
-				if (range <= 40) return { unit: 'minute', count: 2 };
-				if (range <= 100) return { unit: 'minute', count: 5 };
-				if (range <= 180) return { unit: 'minute', count: 10 };
-				if (range <= 280) return { unit: 'minute', count: 15 };
-				if (range <= 600) return { unit: 'minute', count: 30 };
-				if (range <= 900) return { unit: 'minute', count: 50 };
-				if (range <= 1300) return { unit: 'minute', count: 80 };
-				if (range <= 1500) return { unit: 'minute', count: 120 };
-				if (range <= 2000) return { unit: 'minute', count: 150 };
-
-				return { unit: 'minute', count: 180 };
-			}
-
-			case 'hour': {
-				if (range <= 20) return { unit: 'hour', count: 1 };
-				if (range <= 40) return { unit: 'hour', count: 2 };
-				if (range <= 100) return { unit: 'hour', count: 5 };
-				if (range <= 180) return { unit: 'hour', count: 10 };
-				if (range <= 280) return { unit: 'hour', count: 15 };
-				if (range <= 600) return { unit: 'hour', count: 30 };
-				if (range <= 900) return { unit: 'hour', count: 50 };
-				if (range <= 1300) return { unit: 'hour', count: 80 };
-				if (range <= 1500) return { unit: 'hour', count: 120 };
-				if (range <= 2000) return { unit: 'hour', count: 150 };
-
-				return { unit: 'hour', count: 180 };
-			}
-
-			case 'day': {
-				if (range <= 20) return { unit: 'day', count: 1 };
-				if (range <= 40) return { unit: 'day', count: 2 };
-				if (range <= 100) return { unit: 'day', count: 5 };
-				if (range <= 180) return { unit: 'day', count: 10 };
-				if (range <= 280) return { unit: 'day', count: 15 };
-				if (range <= 600) return { unit: 'day', count: 30 };
-				if (range <= 900) return { unit: 'day', count: 50 };
-				if (range <= 1300) return { unit: 'day', count: 80 };
-				if (range <= 1500) return { unit: 'day', count: 120 };
-				if (range <= 2000) return { unit: 'day', count: 150 };
-
-				return { unit: 'day', count: 180 };
-			}
+	function getChartIntervalMillis() {
+		switch (interval.get()) {
+			case '1m': return 60000;
+			case '5m': return 60000 * 5;
+			case '15m': return 60000 * 15;
+			case '1h': return 3600000;
+			case '6h': return 3600000 * 6;
+			case '1d': return 86400000;
 		}
+	}
 
-		return { unit: 'minute', count: 15 };
+	function getTickMultiplier() {
+		switch (interval.get()) {
+			case '1m': return { minute: 1, hour: 1, day: 1 };
+			case '5m': return { minute: 5, hour: 1, day: 1 };
+			case '15m': return { minute: 15, hour: 1, day: 1 };
+			case '1h': return { minute: 60, hour: 1, day: 1 };
+			case '6h': return { minute: 360, hour: 6, day: 1 };
+			case '1d': return { minute: 1440, hour: 24, day: 1 };
+		}
+	}
+
+	function getDurationCalc(count: number) {
+		switch (interval.get()) {
+			case '1m': return { unit: 'minute', count: count * 1 };
+			case '5m': return { unit: 'minute', count: count * 5 };
+			case '15m': return { unit: 'minute', count: count * 15 };
+			case '1h': return { unit: 'hour', count: count * 1 };
+			case '6h': return { unit: 'hour', count: count * 6 };
+			case '1d': return { unit: 'day', count: count * 1 };
+		}
+	}
+
+	function getTickCount() {
+		return Math.floor(window.outerWidth / 130);
+	}
+
+	function getMinorTicks(range: number) {
+		const duration = getChartIntervalMillis();
+		const targetTicks = getTickCount();
+		const totalWidth = range * duration;
+		const tickMillis = totalWidth / targetTicks;
+
+		const count = Math.round(tickMillis / duration);
+		const result = getDurationCalc(count);
+
+		return result;
 	}
 
 	function getCurrentMinorTicks(): { unit: string, count: number } {
@@ -143,10 +158,16 @@
 		chart.crosshair()
 			.yLabel().fontSize(10).padding(0, 0, 0, 12).background('#070f15')
 			// @ts-ignore
-			.format((x: any) => '$' + x.value.toLocaleString('en-US', {
-				minimumFractionDigits: 0,
-				maximumFractionDigits: 3
-			}));
+			.format((x: any) => {
+				if (typeof x.value !== 'number') {
+					return '';
+				}
+
+				return '$' + x.value.toLocaleString('en-US', {
+					minimumFractionDigits: 0,
+					maximumFractionDigits: 3
+				});
+			});
 
 		// @ts-ignore
 		chart.tooltip().format((e: any) => {
@@ -157,14 +178,28 @@
 			const timestamp: number = e.x;
 			const offset = offsetCache.get(timestamp);
 
-			dispatch('tooltip', {
-				open,
-				high,
-				low,
-				close,
+			hovering = true;
+			hoveringData = {
 				timestamp,
-				offset
-			});
+				offset,
+				data: {
+					open,
+					high,
+					low,
+					close,
+				}
+			};
+
+			if (open !== undefined) {
+				dispatch('tooltip', {
+					open,
+					high,
+					low,
+					close,
+					timestamp,
+					offset
+				});
+			}
 		});
 
 		chart.tooltip().useHtml(true);
@@ -175,10 +210,16 @@
 		chart.plot(0).yAxis().labels().padding(10);
 
 		// @ts-ignore
-		chart.plot(0).yAxis().labels().format((x: any) => '$' + x.value.toLocaleString('en-US', {
-			minimumFractionDigits: 0,
-			maximumFractionDigits: 3
-		}));
+		chart.plot(0).yAxis().labels().format((x: any) => {
+			if (typeof x.value !== 'number') {
+				return '';
+			}
+
+			return '$' + x.value.toLocaleString('en-US', {
+				minimumFractionDigits: 0,
+				maximumFractionDigits: 3
+			});
+		});
 
 		chart.plot(0).xAxis().labels().fontSize(10);
 		chart.plot(0).xAxis().minorLabels().fontSize(10);
@@ -228,6 +269,10 @@
 			const price: number = ctx.value;
 			const open: number = ctx.open;
 
+			if (typeof price !== 'number') {
+				return '';
+			}
+
 			if (price >= open) {
 				indicator.label().fontColor('#3eb444');
 			}
@@ -241,14 +286,59 @@
 			});
 		});
 
+		chart.listen('mousedown', (e: any) => {
+			isMouseDown = true;
+			mouseDownAt = Date.now();
+			mouseDownCoords = {
+				x: e.screenX,
+				y: e.screenY
+			};
+		});
+
+		chart.listen('mouseup', (e: any) => {
+			if (window.outerWidth < 1200 || !isMouseDown) {
+				isMouseDown = false;
+				return;
+			}
+
+			isMouseDown = false;
+
+			if (hovering && hoveringData && hoveringData.offset) {
+				if (selectedData?.offset === hoveringData.offset) {
+					selected = false;
+					selectedData = undefined;
+
+					chart.annotations().removeAllAnnotations();
+				}
+				else if (chartCurrentTick.get() === undefined || hoveringData.offset < chartCurrentTick.get().offset) {
+					if (mouseDownAt <= Date.now() - 1000) {
+						if (Math.abs(e.screenX - mouseDownCoords.x) < 5) {
+							if (Math.abs(e.screenY - mouseDownCoords.y) < 5) {
+								selected = true;
+								selectedData = hoveringData;
+
+								chart.annotations().removeAllAnnotations();
+								chart.plot(0).annotations().verticalLine({
+									xAnchor: selectedData.timestamp,
+									normal: { stroke: '2 #00AEFF60' }
+								})
+									.allowEdit(false)
+									.markers(false);
+							}
+						}
+					}
+				}
+			}
+		});
+
 		chart.listen('selectedrangechange', (e: any) => {
 			const interval: string = e.dataIntervalUnit;
 			const firstTimestamp: number = e.firstVisible;
 			const lastTimestamp: number = e.lastVisible;
 			const isRightEdge = $chartCurrentTick ? ($chartCurrentTick.timestamp === lastTimestamp) : true;
 
-			range = (lastTimestamp - firstTimestamp) / getInterval(interval);
-			const ticks = getMinorTicks(interval, range);
+			range = (lastTimestamp - firstTimestamp) / getChartIntervalMillis() + 1;
+			const ticks = getMinorTicks(range);
 			const currentTicks = getCurrentMinorTicks();
 
 			// Decrease frequency of ticks for smaller screens
@@ -263,6 +353,15 @@
 
 			// Emit an event for scroll
 			dispatch('scrolled', !isRightEdge);
+
+			if (e.source === 'plot-drag') {
+				isMouseDown = false;
+			}
+
+			// Update range in storage
+			if (!isNaN(range) && range > 0) {
+				localStorage.setItem('chart-range', range.toString());
+			}
 		});
 
 		chart.interactivity().zoomOnMouseWheel(true);
@@ -277,6 +376,8 @@
 						const el = <HTMLElement>removed_node;
 
 						if (el.classList.contains('anychart-tooltip')) {
+							hovering = false;
+							hoveringData = undefined;
 							dispatch('tooltipExit');
 						}
 					}
@@ -285,6 +386,29 @@
 		});
 
 		observer.observe(containerElement, { subtree: true, childList: true });
+	}
+
+	function getViewDensity() {
+		const data = localStorage.getItem('chart-range');
+
+		if (typeof data !== 'string') {
+			let viewDensity = 120;
+
+			if (window.outerWidth < 1600) viewDensity = 90;
+			if (window.outerWidth < 1200) viewDensity = 60;
+			if (window.outerWidth < 900) viewDensity = 30;
+			if (window.outerWidth < 500) viewDensity = 15;
+
+			return viewDensity;
+		}
+
+		const int = +data;
+
+		if (isNaN(int) || int <= 0) {
+			return 120;
+		}
+
+		return int;
 	}
 
 	/**
@@ -304,11 +428,7 @@
 		}
 
 		// Calculate the starting data density for chart data based on device width
-		let viewDensity = 120;
-		if (window.outerWidth < 1600) viewDensity = 90;
-		if (window.outerWidth < 1200) viewDensity = 60;
-		if (window.outerWidth < 900) viewDensity = 30;
-		if (window.outerWidth < 500) viewDensity = 15;
+		let viewDensity = getViewDensity();
 
 		// Grab the start data
 		const startData = mappedData[Math.max(0, mappedData.length - viewDensity)];
@@ -396,7 +516,7 @@
 	export const resetScrollView = () => {
 		if (chart && chart.enabled()) {
 			if (range && !isNaN(range)) {
-				const startData = realChartData[Math.max(0, realChartData.length - (range + 2))];
+				const startData = realChartData[Math.max(0, realChartData.length - (range + 1))];
 				const endData = realChartData[realChartData.length - 1];
 
 				// Reset the range
@@ -407,6 +527,26 @@
 			}
 		}
 	}
+
+	const chartCorrector = (dto: WebChartCorrection) => {
+		if (!dataTable) return;
+
+		const data = getChartData(dto);
+
+		// Update the graph
+		dataTable.addData([
+			data
+		]);
+
+		// Update the real chart data
+		for (let i = 0; i < realChartData.length; i++) {
+			const o = realChartData[i];
+
+			if (o[0] === data[0]) {
+				realChartData[i] = data;
+			}
+		}
+	};
 
 	// Create the chart on mount
 	onMount(() => {
@@ -424,6 +564,8 @@
 			else {
 				console.log('Deferring chart rendering due to lack of data');
 			}
+
+			Backend.chart.on('chartCorrection', chartCorrector);
 		}
 
 		return () => {
@@ -436,6 +578,8 @@
 				// Delete the chart from memory
 				chart.dispose();
 			}
+
+			Backend.chart.removeListener('chartCorrection', chartCorrector);
 		};
 	});
 

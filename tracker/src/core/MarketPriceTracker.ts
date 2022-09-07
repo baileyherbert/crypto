@@ -220,4 +220,4 @@ interface ICandleData {
 	}
 }
 
-const INTERVALS: Interval[] = ['1m', '5m', '15m', '1h', '6h', '1d'];
+export const INTERVALS: Interval[] = ['1m', '5m', '15m', '1h', '6h', '1d'];

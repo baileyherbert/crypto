@@ -12,15 +12,16 @@
 
 		<script src="https://cdn.anychart.com/releases/8.10.0/js/anychart-base.min.js"></script>
 		<script src="https://cdn.anychart.com/releases/8.10.0/js/anychart-stock.min.js"></script>
+		<script src="https://cdn.anychart.com/releases/8.10.0/js/anychart-annotations.min.js"></script>
 	</head>
 	<body>
 		<noscript>Please enable JavaScript to view this application.</noscript>
 
 		<script type="text/javascript">
-			var ws = 'ws://127.0.0.1:21457';
-			var wsPath = '/socket.io/';
-			// var ws = 'https://bailey.sh/';
-			// var wsPath = '/crypto/api/socket.io';
+			// var ws = 'ws://127.0.0.1:21457';
+			// var wsPath = '/socket.io/';
+			var ws = 'https://bailey.sh/';
+			var wsPath = '/crypto/api/socket.io';
 			var subscription = 'bailey';
 		</script>
 		<script type="module" src="/src/main.ts"></script>

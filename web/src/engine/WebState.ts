@@ -42,6 +42,11 @@ export class WebState {
 	});
 
 	/**
+	 * A store containing an ongoing, progress-tracked task.
+	 */
+	public task = createStore<Task | undefined>(undefined);
+
+	/**
 	 * A store containing an array of all assets under the current account. This store will only be updated if the
 	 * order of the assets (sorted by relative percent of holdings) changes.
 	 */
@@ -118,4 +123,9 @@ export class WebState {
 		}
 	}
 
+}
+
+export interface Task {
+	text: string;
+	progress: number;
 }

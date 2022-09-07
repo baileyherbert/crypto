@@ -52,16 +52,32 @@
 		</div>
 		<div class="col sep border"><div></div></div>
 		<div class="col growth mobile-2">
-			<AssetPrice price={growthHour} valueMode='trendAmountDollars' showSigns={true} />
+			{#if asset.ticker !== 'USD'}
+				<AssetPrice price={growthHour} valueMode='trendAmountDollars' showSigns={true} />
+			{:else}
+				<div class="none">-</div>
+			{/if}
 		</div>
 		<div class="col growth mobile-1">
-			<AssetPrice price={growthDay} valueMode='trendAmountDollars' showSigns={true} />
+			{#if asset.ticker !== 'USD'}
+				<AssetPrice price={growthDay} valueMode='trendAmountDollars' showSigns={true} />
+			{:else}
+				<div class="none">-</div>
+			{/if}
 		</div>
 		<div class="col growth">
-			<AssetPrice price={growthWeek} valueMode='trendAmountDollars' showSigns={true} />
+			{#if asset.ticker !== 'USD'}
+				<AssetPrice price={growthWeek} valueMode='trendAmountDollars' showSigns={true} />
+			{:else}
+				<div class="none">-</div>
+			{/if}
 		</div>
 		<div class="col growth">
-			<AssetPrice price={growthMonth} valueMode='trendAmountDollars' showSigns={true} />
+			{#if asset.ticker !== 'USD'}
+				<AssetPrice price={growthMonth} valueMode='trendAmountDollars' showSigns={true} />
+			{:else}
+				<div class="none">-</div>
+			{/if}
 		</div>
 		<div class="col button"></div>
 	</div>

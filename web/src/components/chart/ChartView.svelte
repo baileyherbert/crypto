@@ -1,11 +1,13 @@
 <script lang="ts">
 	import type { Interval } from 'src/engine/managers/ChartManager';
 	import type { WebAsset } from 'src/engine/models/WebAsset';
+	import type { WebChartData } from 'src/engine/models/WebChart';
 
 	import { Backend } from 'src/globals';
 	import Chart from './Chart.svelte';
 
 	const { chartCurrentTick, chartData, interval, type } = Backend.chart;
+	const { task } = Backend.state;
 
 	export let selectedAsset: WebAsset = undefined;
 
@@ -16,6 +18,10 @@
 	let offset = 'N/A';
 	let isTooltipActive = false;
 	let isScrolledAway = false;
+
+	let isSelected = false;
+	let selection: WebChartData = undefined;
+	let deselect: () => void;
 
 	let enableEma12 = false;
 	let enableEma26 = false;
@@ -71,9 +77,22 @@
 		enableEma26 = !enableEma26;
 	}
 
+	function recalculateAtTime() {
+		if (task.get() !== undefined) return;
+
+		if (isSelected) {
+			Backend.socket.emit('@chart/recalculate', {
+				timestamp: selection.timestamp,
+				interval: interval.get()
+			});
+
+			deselect();
+		}
+	}
+
 	$: {
 		const current = $chartCurrentTick;
-		if (current && !isTooltipActive) {
+		if (current && !isTooltipActive && typeof current.data.open === 'number') {
 			openMetric = current.data.open.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 			closeMetric = current.data.close.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 			highMetric = current.data.high.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
@@ -85,11 +104,13 @@
 	$: {
 		if (!$chartCurrentTick && $chartData.length > 0) {
 			const { data, offset: o } = $chartData[$chartData.length - 1];
-			openMetric = data.open.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-			closeMetric = data.close.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-			highMetric = data.high.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-			lowMetric = data.low.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-			offset = o.toString();
+			if (typeof data.open === 'number') {
+				openMetric = data.open.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+				closeMetric = data.close.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+				highMetric = data.high.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+				lowMetric = data.low.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+				offset = o.toString();
+			}
 		}
 	};
 </script>
@@ -150,6 +171,28 @@
 
 		<div class="expand"></div>
 
+		{#if isSelected}
+		<div class="dropdown-button marker">
+			<div class="current">
+				<div class="value"><button>
+					<div class="indicator marker"></div>
+					Selection
+				</button></div>
+				<div class="arrow">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+						<path d="M26.91425,13.12115,16.70709,23.32849a.99988.99988,0,0,1-1.41418,0L5.08575,13.12115a.50007.50007,0,0,1,0-.70715l2.8285-2.82806a.5.5,0,0,1,.70709,0L16,16.96436l7.37866-7.37842a.5.5,0,0,1,.70709,0l2.8285,2.82806A.50007.50007,0,0,1,26.91425,13.12115Z"/>
+					</svg>
+				</div>
+			</div>
+			<div class="dropdown">
+				<ul>
+					<li><button on:click={ recalculateAtTime } title="Recalculates the data for all charts at this specific time.">Recalculate</button></li>
+					<li><button on:click={ deselect }>Deselect</button></li>
+				</ul>
+			</div>
+		</div>
+		{/if}
+
 		<div class="metric no-mobile" title="Index (time offset) for debugging">
 			I: { offset }
 		</div>
@@ -185,6 +228,9 @@
 			on:tooltipExit={ stopTooltip }
 			on:scrolled={ updateScrollState }
 			bind:resetScrollView={resetScrollView}
+			bind:selected={isSelected}
+			bind:selectedData={selection}
+			bind:deselect={deselect}
 		/>
 	</div>
 </div>

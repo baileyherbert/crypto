@@ -3,6 +3,7 @@ import { Account, AssetOrder, AssetPrice } from './Account';
 import { AccountBalanceInterval, Interval } from './AccountBalanceInterval';
 import path from 'path';
 import fs from 'fs';
+import { time } from 'cron';
 
 /**
  * This class represents an individual balance, such as for a crypto, total balance, etc. It also records historical
@@ -261,9 +262,25 @@ export class AccountBalance extends EventEmitter<AccountBalanceEvents> {
 		}
 
 		const difference = dollars - dollarsBefore;
-		const trend = difference > 0 ? 'up' : (difference === 0 ? 'none' : 'down');
-		const trendAmountDollars = +difference.toFixed(4);
-		const trendAmountPercent = +((dollars / dollarsBefore - 1) * 100).toFixed(4);
+
+		let trendAmountDollars = +difference.toFixed(4);
+
+		// Get starting timestamp of this period
+		const timestamp = Date.now() - HISTORY_INTERVAL_DURATIONS[interval];
+
+		// Find all buy and sell orders from during this period
+		for (const trade of this._history.values()) {
+			if (trade.timestamp >= timestamp) {
+				if (trade.amount > 0) {
+					const amountDollars = trade.price * trade.amount;
+					trendAmountDollars += -(amountDollars);
+				}
+			}
+		}
+
+		// Calculate the trend percentage
+		const trendAmountPercent = +((trendAmountDollars / dollarsBefore) * 100).toFixed(4);
+		const trend = trendAmountDollars > 0 ? 'up' : (trendAmountDollars === 0 ? 'none' : 'down');
 
 		return {
 			dollars,
@@ -336,16 +353,17 @@ export class AccountBalance extends EventEmitter<AccountBalanceEvents> {
 	 *
 	 * @returns
 	 */
-	public getBuyOrders(): AssetOrder[] {
+	public getBuyOrders(honorHideFlag = false): AssetOrder[] {
 		const orders = new Array<AssetOrder>();
 
 		for (const item of this._history.values()) {
+			if (item.hide && honorHideFlag) continue;
 			if (item.amount > 0) {
 				orders.push({
 					quantity: item.amount,
 					price: item.price,
 					amount: (item.price * item.amount),
-					timestamp: item.timestamp
+					timestamp: item.timestamp,
 				});
 			}
 		}
@@ -358,10 +376,11 @@ export class AccountBalance extends EventEmitter<AccountBalanceEvents> {
 	 *
 	 * @returns
 	 */
-	public getSellOrders(): AssetOrder[] {
+	public getSellOrders(honorHideFlag = false): AssetOrder[] {
 		const orders = new Array<AssetOrder>();
 
 		for (const item of this._history.values()) {
+			if (item.hide && honorHideFlag) continue;
 			if (item.amount < 0) {
 				orders.push({
 					quantity: Math.abs(item.amount),
@@ -375,6 +394,61 @@ export class AccountBalance extends EventEmitter<AccountBalanceEvents> {
 		return orders;
 	}
 
+	/**
+	 * Returns buy orders that occurred at the given timestamp through the end of the interval.
+	 *
+	 * @param timestamp
+	 * @returns
+	 */
+	public getBuysAt(timestamp: number, interval: Interval) {
+		const end = timestamp + this.getInterval(interval).duration;
+
+		return this.getBuyOrders().filter(o => {
+			return o.timestamp >= timestamp && o.timestamp < end;
+		});
+	}
+
+	/**
+	 * Returns sell orders that occurred at the given timestamp through the end of the interval.
+	 *
+	 * @param timestamp
+	 * @returns
+	 */
+	public getSellsAt(timestamp: number, interval: Interval) {
+		const end = timestamp + this.getInterval(interval).duration;
+
+		return this.getSellOrders().filter(o => {
+			return o.timestamp >= timestamp && o.timestamp < end
+		});
+	}
+
+	/**
+	 * Gets the amount of asset owned at a particular time.
+	 *
+	 * @param timestamp
+	 * @returns
+	 */
+	public getAmountAtTime(timestamp: number, interval: Interval) {
+		let amount = this.amount;
+		const offset = timestamp + this.getInterval(interval).duration;
+
+		// Iterate over buy orders that have occurred within this time and subtract them
+		for (const order of this.getBuyOrders()) {
+			if (order.timestamp > offset) {
+				amount -= order.quantity;
+			}
+		}
+
+		// Iterate over sell orders that have occurred within this time and add them
+		for (const order of this.getSellOrders()) {
+			if (order.timestamp > offset) {
+				amount += order.quantity;
+			}
+		}
+
+		return amount;
+	}
+
 	private _internalSavePathCache?: string;
 	public get savePath() {
 		if (!this._internalSavePathCache) {
@@ -386,6 +460,17 @@ export class AccountBalance extends EventEmitter<AccountBalanceEvents> {
 		}
 
 		return this._internalSavePathCache;
+	}
+
+	/**
+	 * Returns the short ticker, like `ADA` instead of `ADA-USD`.
+	 */
+	public get shortTicker() {
+		if (this.name.indexOf('-') >= 0) {
+			return this.name.substring(0, this.name.indexOf('-'));
+		}
+
+		return this.name;
 	}
 
 }
@@ -415,6 +500,18 @@ export interface ITradeHistory {
 	 * The price of the currency during this trade.
 	 */
 	price: number;
+
+	/**
+	 * Hide this record from the public?
+	 */
+	hide?: boolean;
 }
 
 export type HistoryInterval = '1h' | '1d' | '1w' | '1m';
+
+const HISTORY_INTERVAL_DURATIONS = {
+	'1h': 3600000,
+	'1d': 86400000,
+	'1w': 86400000 * 7,
+	'1m': 86400000 * 30
+}

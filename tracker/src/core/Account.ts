@@ -3,8 +3,11 @@ import { AccountBalance } from './AccountBalance';
 import { AccountClient } from './AccountClient';
 import path from 'path';
 import fs from 'fs';
-import { Logger } from '@baileyherbert/common';
+import { Logger, PromiseTimeoutSource } from '@baileyherbert/common';
 import { WebSubscriptionManager } from '../http/WebSubscriptionManager';
+import { INTERVALS } from './MarketPriceTracker';
+import { ICandleData, Interval, WebChartData } from './AccountBalanceInterval';
+import { WebClient } from '../http/WebClient';
 
 /**
  * The account class represents a single user and portfolio combination. It requires its own key.
@@ -74,7 +77,7 @@ export class Account {
 		// Emit balance changes
 		for (const manager of this.balances.values()) {
 			const fullTicker = manager.name;
-			const ticker: string = fullTicker.substring(0, 3);
+			const ticker: string = fullTicker.length > 3 ? fullTicker.substring(0, fullTicker.indexOf('-')) : fullTicker;
 			const name = Main.getCryptoName(ticker);
 
 			// Notify clients when balance changes
@@ -137,7 +140,9 @@ export class Account {
 		let total = 0;
 
 		for (const balance of this.balances.values()) {
-			total += balance.usd;
+			if (balance.name !== 'USD') {
+				total += balance.usd;
+			}
 		}
 
 		this.totalBalance.recordAmount(total);
@@ -165,7 +170,7 @@ export class Account {
 		const assets = new Array<Asset>();
 
 		for (const fullTicker of [...Main.config.ticker.currencies, 'USD']) {
-			const ticker: string = fullTicker.substring(0, 3);
+			const ticker: string = fullTicker.length > 3 ? fullTicker.substring(0, fullTicker.indexOf('-')) : fullTicker;
 			const name = Main.getCryptoName(ticker);
 			const manager = this.balances.get(fullTicker);
 
@@ -196,8 +201,8 @@ export class Account {
 				growthDay: promises[2],
 				growthWeek: promises[3],
 				growthMonth: promises[4],
-				buys: manager.getBuyOrders(),
-				sells: manager.getSellOrders()
+				buys: manager.getBuyOrders(true),
+				sells: manager.getSellOrders(true)
 			});
 		}
 
@@ -209,6 +214,66 @@ export class Account {
 		});
 
 		return assets;
+	}
+
+	/**
+	 * Recalculates the balances of all assets, and the total balance, at the specified timestamp using historical
+	 * data from Coinbase.
+	 *
+	 * @param timestamp
+	 */
+	public async recalculateBalancesAt(client: WebClient, { timestamp, interval }: RecalculateDto) {
+		const total: ICandleData = {
+			open: 0,
+			high: 0,
+			close: 0,
+			low: 0
+		};
+
+		const intervalDurationMillis = Main.ticker.getSecondsFromInterval(interval) * 1000;
+		const offset = Math.floor(timestamp / intervalDurationMillis);
+
+		let first = true;
+		let jobs = this.balances.size;
+		let finished = 0;
+
+		const sendProgress = () => client.emit('task', {
+			text: 'Recalculating balances...',
+			progress: Math.floor((finished / jobs) * 100)
+		});
+
+		sendProgress();
+
+		for (const asset of this.balances.values()) {
+			if (asset.name !== 'USD') {
+				first = false;
+
+				const balance = asset.getInterval(interval);
+				const amount = asset.getAmountAtTime(timestamp, interval);
+
+				if (amount > 0.01) {
+					this.logger.debug('Recalculating %s for interval %s...', asset.name, interval);
+
+					if (!first) await new PromiseTimeoutSource(2500);
+
+					const data = await balance.recalculateAt(offset, amount);
+
+					if (data) {
+						total.open += data.open;
+						total.high += data.high;
+						total.low += data.low;
+						total.close += data.close;
+					}
+				}
+			}
+
+			finished++;
+			sendProgress();
+		}
+
+		// Update total balance
+		this.totalBalance.getInterval(interval).correct(offset, total);
+		client.emit('task');
 	}
 
 	private _internalSavePathCache?: string;
@@ -259,4 +324,9 @@ export interface AssetOrder {
 	price: number;
 	amount: number;
 	timestamp: number;
+}
+
+export interface RecalculateDto {
+	timestamp: number;
+	interval: Interval;
 }
